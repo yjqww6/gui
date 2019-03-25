@@ -3,6 +3,9 @@
 (require racket/class racket/match)
 (provide autocompletion-cursor<%> autocompletion-cursor%)
 
+(module+ test
+  (require rackunit))
+
 (define autocompletion-cursor<%>
   (interface ()
     get-completions  ;      -> (listof string) 
@@ -66,9 +69,10 @@
                             #:when (>= r mx))
                   (cons w r))
                 (match-lambda** [((cons w r) (cons w* r*))
-                                 (or (> r r*)
-                                     ;; prefer shorter matches
-                                     (< (string-length w) (string-length w*)))]))))
+                                 (cond
+                                   [(not (= r r*)) (> r r*)]
+                                   ;; prefer shorter matches
+                                   [else (< (string-length w) (string-length w*))])]))))
     
     (define all-completions-length (length all-completions))
     
@@ -91,3 +95,34 @@
     (define/public (empty?) (eq? (get-length) 0))
     
     (super-new)))
+
+(module+ test
+  (define (get-completions word ls)
+    (send (new autocompletion-cursor%
+               [word word]
+               [all-words ls])
+          get-completions))
+
+  (define word "define-syntax-")
+  (define expected '("define-syntax-rule" "define-syntax" "syntax"))
+
+  (match-define (list a b c) expected)
+
+  (check-equal? (get-completions word (list a b c))
+                expected)
+
+  (check-equal? (get-completions word (list a c b))
+                expected)
+
+  (check-equal? (get-completions word (list b a c))
+                expected)
+
+  (check-equal? (get-completions word (list b c a))
+                expected)
+
+  (check-equal? (get-completions word (list c a b))
+                expected)
+
+  (check-equal? (get-completions word (list c b a))
+                expected)
+  )
